@@ -1,0 +1,17 @@
+server/*
+client/*
+src/*
+tsconfig.node.json
+tailwind.config.js
+eslint.config.js
+README.md
+report_demo_page-0001.jpg
+package-lock.json
+!server/models/Submission.js
+!server/routes/submissions.js
+!server/routes/admin.js
+!server/services/pdfService.js
+!client/src/pages/UploadPage.js
+!client/src/pages/AdminSubmissionView.js
+!client/src/pages/PatientDashboard.js
+!client/src/pages/AdminDashboard.js
