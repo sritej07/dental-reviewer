@@ -14,8 +14,19 @@ import {
   Download,
   AlertCircle,
   CheckCircle,
-  Eye
+  Eye,
+  Plus,
+  Trash2
 } from 'lucide-react';
+
+const problemTypes = {
+  'Inflammed/Red gums': '#A855F7',
+  'Malaligned': '#EAB308',
+  'Receded gums': '#78716C',
+  'Stains': '#EF4444',
+  'Attrition': '#22D3EE',
+  'Crowns': '#EC4899'
+};
 
 const AdminSubmissionView = () => {
   const { id } = useParams();
@@ -23,16 +34,40 @@ const AdminSubmissionView = () => {
   const navigate = useNavigate();
   const [submission, setSubmission] = useState(null);
   const [annotations, setAnnotations] = useState([]);
-  const [treatmentRecommendations, setTreatmentRecommendations] = useState('');
+  const [treatmentRecommendations, setTreatmentRecommendations] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [detectedProblems, setDetectedProblems] = useState([]);
 
   useEffect(() => {
     fetchSubmission();
   }, [id]);
+
+  useEffect(() => {
+    // Extract unique problems from annotations
+    const problems = [...new Set(annotations.map(ann => ann.problem))];
+    setDetectedProblems(problems);
+    
+    // Initialize recommendations for new problems
+    const newRecommendations = { ...treatmentRecommendations };
+    problems.forEach(problem => {
+      if (!newRecommendations[problem]) {
+        newRecommendations[problem] = '';
+      }
+    });
+    
+    // Remove recommendations for problems that no longer exist
+    Object.keys(newRecommendations).forEach(problem => {
+      if (!problems.includes(problem)) {
+        delete newRecommendations[problem];
+      }
+    });
+    
+    setTreatmentRecommendations(newRecommendations);
+  }, [annotations]);
 
   const fetchSubmission = async () => {
     try {
@@ -40,7 +75,7 @@ const AdminSubmissionView = () => {
       const submissionData = response.data.submission;
       setSubmission(submissionData);
       setAnnotations(submissionData.annotations || []);
-      setTreatmentRecommendations(submissionData.treatmentRecommendations || '');
+      setTreatmentRecommendations(submissionData.treatmentRecommendations || {});
     } catch (error) {
       console.error('Error fetching submission:', error);
       if (error.response?.status === 403) {
@@ -80,8 +115,52 @@ const AdminSubmissionView = () => {
     }
   };
 
+  const handleRecommendationChange = (problem, value) => {
+    setTreatmentRecommendations(prev => ({
+      ...prev,
+      [problem]: value
+    }));
+  };
+
+  const addCustomRecommendation = () => {
+    const problemName = prompt('Enter problem name:');
+    if (problemName && !treatmentRecommendations[problemName]) {
+      setTreatmentRecommendations(prev => ({
+        ...prev,
+        [problemName]: ''
+      }));
+    }
+  };
+
+  const removeRecommendation = (problem) => {
+    const newRecommendations = { ...treatmentRecommendations };
+    delete newRecommendations[problem];
+    setTreatmentRecommendations(newRecommendations);
+  };
+
+  const saveTreatmentRecommendations = async () => {
+    setSaving(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await axios.put(`/api/admin/submissions/${id}/recommendations`, {
+        treatmentRecommendations
+      });
+
+      setSubmission(response.data.submission);
+      setSuccess('Treatment recommendations saved successfully!');
+    } catch (error) {
+      console.error('Error saving recommendations:', error);
+      setError('Failed to save treatment recommendations');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const generateReport = async () => {
-    if (!treatmentRecommendations.trim()) {
+    const hasRecommendations = Object.values(treatmentRecommendations).some(rec => rec.trim());
+    if (!hasRecommendations) {
       setError('Please provide treatment recommendations before generating the report');
       return;
     }
@@ -272,51 +351,158 @@ const AdminSubmissionView = () => {
 
       {/* Treatment Recommendations */}
       <div className="card">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Treatment Recommendations</h2>
-        <textarea
-          value={treatmentRecommendations}
-          onChange={(e) => setTreatmentRecommendations(e.target.value)}
-          className="form-input form-textarea"
-          rows={8}
-          placeholder="Provide detailed treatment recommendations based on your analysis..."
-        />
-        
-        <div className="mt-4 flex items-center gap-4">
-          <button
-            onClick={generateReport}
-            disabled={generating || !treatmentRecommendations.trim() || submission.status !== 'annotated'}
-            className="btn-primary"
-          >
-            {generating ? (
-              <>
-                <div className="loading-spinner"></div>
-                Generating Report...
-              </>
-            ) : (
-              <>
-                <FileText size={16} />
-                Generate PDF Report
-              </>
-            )}
-          </button>
-          
-          {submission.status === 'reported' && submission.reportUrl && (
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-gray-900">Treatment Recommendations</h2>
+          <div className="flex gap-2">
             <button
-              onClick={downloadReport}
-              className="btn-secondary"
+              onClick={addCustomRecommendation}
+              className="btn-secondary text-sm"
             >
-              <Download size={16} />
-              Download Report
+              <Plus size={16} />
+              Add Custom Problem
             </button>
-          )}
+            <button
+              onClick={saveTreatmentRecommendations}
+              disabled={saving}
+              className="btn-primary text-sm"
+            >
+              {saving ? (
+                <>
+                  <div className="loading-spinner"></div>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save size={16} />
+                  Save Recommendations
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
-        {submission.status !== 'annotated' && submission.status !== 'reported' && (
-          <p className="text-sm text-gray-600 mt-2">
-            Please save annotations before generating the report.
-          </p>
+        {detectedProblems.length === 0 && Object.keys(treatmentRecommendations).length === 0 ? (
+          <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+            <FileText size={48} className="mx-auto text-gray-400 mb-4" />
+            <p className="text-gray-600 mb-2">No problems detected yet</p>
+            <p className="text-sm text-gray-500">Add annotations to the image above to generate problem-specific recommendations</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Auto-detected problems from annotations */}
+            {detectedProblems.map(problem => (
+              <div key={problem} className="bg-gray-50 rounded-lg p-4 border-l-4" style={{ borderLeftColor: problemTypes[problem] }}>
+                <div className="flex items-center gap-3 mb-3">
+                  <div 
+                    className="w-4 h-4 rounded-full border-2 border-white shadow-sm"
+                    style={{ backgroundColor: problemTypes[problem] }}
+                  />
+                  <h3 className="font-semibold text-gray-900">{problem}</h3>
+                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                    From Annotations
+                  </span>
+                </div>
+                <textarea
+                  value={treatmentRecommendations[problem] || ''}
+                  onChange={(e) => handleRecommendationChange(problem, e.target.value)}
+                  className="form-input form-textarea w-full"
+                  rows={4}
+                  placeholder={`Enter treatment recommendations for ${problem}...`}
+                />
+              </div>
+            ))}
+
+            {/* Custom problems not from annotations */}
+            {Object.keys(treatmentRecommendations).filter(problem => !detectedProblems.includes(problem)).map(problem => (
+              <div key={problem} className="bg-yellow-50 rounded-lg p-4 border-l-4 border-yellow-400">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-4 h-4 rounded-full bg-yellow-400 border-2 border-white shadow-sm" />
+                    <h3 className="font-semibold text-gray-900">{problem}</h3>
+                    <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
+                      Custom Problem
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => removeRecommendation(problem)}
+                    className="text-red-500 hover:text-red-700 p-1"
+                    title="Remove this recommendation"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+                <textarea
+                  value={treatmentRecommendations[problem] || ''}
+                  onChange={(e) => handleRecommendationChange(problem, e.target.value)}
+                  className="form-input form-textarea w-full"
+                  rows={4}
+                  placeholder={`Enter treatment recommendations for ${problem}...`}
+                />
+              </div>
+            ))}
+          </div>
         )}
+
+        {/* Generate Report Section */}
+        <div className="mt-8 pt-6 border-t border-gray-200">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={generateReport}
+              disabled={generating || Object.values(treatmentRecommendations).every(rec => !rec.trim()) || submission.status !== 'annotated'}
+              className="btn-primary"
+            >
+              {generating ? (
+                <>
+                  <div className="loading-spinner"></div>
+                  Generating Report...
+                </>
+              ) : (
+                <>
+                  <FileText size={16} />
+                  Generate PDF Report
+                </>
+              )}
+            </button>
+            
+            {submission.status === 'reported' && submission.reportUrl && (
+              <button
+                onClick={downloadReport}
+                className="btn-secondary"
+              >
+                <Download size={16} />
+                Download Report
+              </button>
+            )}
+          </div>
+
+          {submission.status !== 'annotated' && submission.status !== 'reported' && (
+            <p className="text-sm text-gray-600 mt-2">
+              Please save annotations before generating the report.
+            </p>
+          )}
+        </div>
       </div>
+
+      {/* Problem Summary */}
+      {detectedProblems.length > 0 && (
+        <div className="card bg-blue-50">
+          <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <AlertCircle size={20} className="text-blue-600" />
+            Detected Problems Summary
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {detectedProblems.map(problem => (
+              <div key={problem} className="flex items-center gap-2 bg-white rounded-lg p-3 shadow-sm">
+                <div 
+                  className="w-3 h-3 rounded-full border border-white shadow-sm"
+                  style={{ backgroundColor: problemTypes[problem] }}
+                />
+                <span className="text-sm font-medium text-gray-700">{problem}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Workflow Status */}
       <div className="card bg-gray-50">
@@ -340,4 +526,4 @@ const AdminSubmissionView = () => {
   );
 };
 
-export default AdminSubmissionView;
+export default AdminSubmissionView

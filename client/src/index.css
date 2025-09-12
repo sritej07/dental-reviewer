@@ -79,7 +79,27 @@ code {
 .annotation-canvas-container canvas {
   display: block;
 }
+/* Add to your CSS file */
+.annotation-container {
+  max-width: 800px;
+  margin: 0 auto;
+}
 
+.loading-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, 0.8);
+  padding: 1rem;
+  border-radius: 0.5rem;
+}
+
+.canvas-container {
+  margin: 1rem 0;
+  border: 1px solid #ccc;
+  border-radius: 0.5rem;
+}
 /* Dropzone styles */
 .dropzone {
   border: 2px dashed #d1d5db;
