@@ -16,23 +16,29 @@ const submissionSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
-  originalImageUrl: {
-    type: String,
-    required: true
-  },
-  originalImagePublicId: {
-    type: String,
-    required: true
-  },
-  annotatedImageUrl: {
-    type: String
-  },
-  annotatedImagePublicId: {
-    type: String
-  },
-  annotations: {
-    type: mongoose.Schema.Types.Mixed,
-    default: []
+  // Updated image structure for 3 images
+  images: {
+    upperTeeth: {
+      originalImageUrl: { type: String, required: true },
+      originalImagePublicId: { type: String, required: true },
+      annotatedImageUrl: { type: String },
+      annotatedImagePublicId: { type: String },
+      annotations: { type: mongoose.Schema.Types.Mixed, default: [] }
+    },
+    frontTeeth: {
+      originalImageUrl: { type: String, required: true },
+      originalImagePublicId: { type: String, required: true },
+      annotatedImageUrl: { type: String },
+      annotatedImagePublicId: { type: String },
+      annotations: { type: mongoose.Schema.Types.Mixed, default: [] }
+    },
+    lowerTeeth: {
+      originalImageUrl: { type: String, required: true },
+      originalImagePublicId: { type: String, required: true },
+      annotatedImageUrl: { type: String },
+      annotatedImagePublicId: { type: String },
+      annotations: { type: mongoose.Schema.Types.Mixed, default: [] }
+    }
   },
   reportUrl: {
     type: String
@@ -40,9 +46,10 @@ const submissionSchema = new mongoose.Schema({
   reportPublicId: {
     type: String
   },
+  // Updated treatment recommendations structure
   treatmentRecommendations: {
-    type: String,
-    default: ''
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
   },
   status: {
     type: String,

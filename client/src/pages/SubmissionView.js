@@ -50,10 +50,8 @@ const SubmissionView = () => {
     }
   };
 
-  const viewAnnotatedImage = () => {
-    if (submission?.annotatedImageUrl) {
-      window.open(submission.annotatedImageUrl, '_blank');
-    }
+  const openAnnotated = (url) => {
+    if (url) window.open(url, '_blank');
   };
 
   if (loading) {
@@ -92,58 +90,51 @@ const SubmissionView = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-5xl mx-auto space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <button
-          onClick={() => navigate('/dashboard')}
-          className="btn-secondary"
-        >
-          <ArrowLeft size={16} />
-          Back to Dashboard
+        <button onClick={() => navigate('/dashboard')} className="btn-secondary">
+          <ArrowLeft size={16} /> Back to Dashboard
         </button>
         <StatusBadge status={submission.status} />
       </div>
 
       {/* Patient Information */}
       <div className="card">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Patient Information</h2>
+        <h2 className="text-xl font-semibold mb-4">Patient Information</h2>
         <div className="grid md:grid-cols-2 gap-6">
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <User size={20} className="text-gray-600" />
               <div>
-                <p className="text-sm text-gray-600">Patient Name</p>
-                <p className="font-medium text-gray-900">{submission.patientName}</p>
+                <p className="text-sm text-gray-600">Name</p>
+                <p className="font-medium">{submission.patientName}</p>
               </div>
             </div>
-            
             <div className="flex items-center gap-3">
               <Mail size={20} className="text-gray-600" />
               <div>
-                <p className="text-sm text-gray-600">Email Address</p>
-                <p className="font-medium text-gray-900">{submission.patientEmail}</p>
+                <p className="text-sm text-gray-600">Email</p>
+                <p className="font-medium">{submission.patientEmail}</p>
               </div>
             </div>
           </div>
-          
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <Calendar size={20} className="text-gray-600" />
               <div>
                 <p className="text-sm text-gray-600">Submitted On</p>
-                <p className="font-medium text-gray-900">
+                <p className="font-medium">
                   {new Date(submission.submittedAt).toLocaleDateString()}
                 </p>
               </div>
             </div>
-            
             {submission.reviewedAt && (
               <div className="flex items-center gap-3">
                 <Calendar size={20} className="text-gray-600" />
                 <div>
                   <p className="text-sm text-gray-600">Reviewed On</p>
-                  <p className="font-medium text-gray-900">
+                  <p className="font-medium">
                     {new Date(submission.reviewedAt).toLocaleDateString()}
                   </p>
                 </div>
@@ -151,85 +142,72 @@ const SubmissionView = () => {
             )}
           </div>
         </div>
-        
         {submission.note && (
           <div className="mt-6 pt-6 border-t border-gray-200">
             <div className="flex items-start gap-3">
               <FileText size={20} className="text-gray-600 mt-1" />
               <div>
-                <p className="text-sm text-gray-600">Patient Notes</p>
-                <p className="text-gray-900 mt-1">{submission.note}</p>
+                <p className="text-sm text-gray-600">Notes</p>
+                <p className="mt-1">{submission.note}</p>
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Original Image */}
+      {/* Images (Upper, Front, Lower) */}
       <div className="card">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Original Image</h2>
-        <div className="bg-gray-50 rounded-lg p-4">
-          <img
-            src={submission.originalImageUrl}
-            alt="Original submission"
-            className="max-w-full h-auto rounded-lg shadow-sm mx-auto"
-            style={{ maxHeight: '500px' }}
-          />
+        <h2 className="text-xl font-semibold mb-4">Submitted Images</h2>
+        <div className="grid md:grid-cols-3 gap-6">
+          {Object.entries(submission.images).map(([key, image]) => (
+            <div key={key} className="bg-gray-50 rounded-lg p-4">
+              <h3 className="text-center font-semibold capitalize mb-2">
+                {key.replace(/([A-Z])/g, ' $1')}
+              </h3>
+              <img
+                src={image.originalImageUrl}
+                alt={`${key} original`}
+                className="rounded-lg shadow-sm mx-auto"
+              />
+              {image.annotatedImageUrl && (
+                <button
+                  onClick={() => openAnnotated(image.annotatedImageUrl)}
+                  className="btn-secondary mt-3 w-full"
+                >
+                  <Eye size={16} /> View Annotated
+                </button>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Annotated Image (if available) */}
-      {submission.annotatedImageUrl && (
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Annotated Review</h2>
-            <button
-              onClick={viewAnnotatedImage}
-              className="btn-secondary"
-            >
-              <Eye size={16} />
-              View Full Size
-            </button>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-4">
-            <img
-              src={submission.annotatedImageUrl}
-              alt="Annotated review"
-              className="max-w-full h-auto rounded-lg shadow-sm mx-auto"
-              style={{ maxHeight: '500px' }}
-            />
-          </div>
-        </div>
-      )}
-
       {/* Treatment Recommendations */}
-      {submission.treatmentRecommendations && (
+      {submission.treatmentRecommendations &&
+        Object.keys(submission.treatmentRecommendations).length > 0 && (
         <div className="card">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Treatment Recommendations</h2>
-          <div className="bg-blue-50 rounded-lg p-4">
-            <p className="text-gray-900 leading-relaxed whitespace-pre-wrap">
-              {submission.treatmentRecommendations}
-            </p>
+          <h2 className="text-xl font-semibold mb-4">Treatment Recommendations</h2>
+          <div className="bg-blue-50 rounded-lg p-4 space-y-2">
+            {Object.entries(submission.treatmentRecommendations).map(([problem, rec]) => (
+              <div key={problem}>
+                <span className="font-semibold">{problem}:</span>
+                <span className="ml-2">{rec}</span>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Report Download */}
+      {/* Final Report */}
       {submission.status === 'reported' && submission.reportUrl && (
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">Final Report</h2>
-              <p className="text-gray-600 mt-1">
-                Your comprehensive oral health screening report is ready for download.
-              </p>
+              <h2 className="text-xl font-semibold">Final Report</h2>
+              <p className="text-gray-600 mt-1">Download your generated report below.</p>
             </div>
-            <button
-              onClick={downloadReport}
-              className="btn-primary"
-            >
-              <Download size={20} />
-              Download Report
+            <button onClick={downloadReport} className="btn-primary">
+              <Download size={20} /> Download
             </button>
           </div>
         </div>
@@ -237,17 +215,11 @@ const SubmissionView = () => {
 
       {/* Status Information */}
       <div className="card bg-gray-50">
-        <h3 className="font-semibold text-gray-900 mb-2">Status Information</h3>
+        <h3 className="font-semibold mb-2">Status Information</h3>
         <div className="text-sm text-gray-600">
-          {submission.status === 'uploaded' && (
-            <p>Your submission has been received and is pending professional review.</p>
-          )}
-          {submission.status === 'annotated' && (
-            <p>Your submission has been reviewed by a dental professional. The report is being prepared.</p>
-          )}
-          {submission.status === 'reported' && (
-            <p>Your comprehensive report is ready for download. Please review the recommendations provided.</p>
-          )}
+          {submission.status === 'uploaded' && <p>Pending review.</p>}
+          {submission.status === 'annotated' && <p>Reviewed. Report being prepared.</p>}
+          {submission.status === 'reported' && <p>Report ready for download.</p>}
         </div>
       </div>
     </div>

@@ -26,32 +26,52 @@ const AnnotationCanvas = ({ imageUrl, annotations, onAnnotationsChange }) => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPoint, setStartPoint] = useState(null);
+  const [isCanvasReady, setIsCanvasReady] = useState(false);
 
+  // useEffect 1: Initializes the canvas only ONCE on component mount.
   useEffect(() => {
-    initializeCanvas();
+    if (!fabricCanvasRef.current && canvasRef.current) {
+      const canvas = new fabric.Canvas(canvasRef.current, {
+        width: 800,
+        height: 600,
+        backgroundColor: '#ffffff'
+      });
+      fabricCanvasRef.current = canvas;
+      setIsCanvasReady(true); // Signal that the canvas is ready
+
+      // Track changes to enable the save button.
+      canvas.on('object:modified', () => setHasUnsavedChanges(true));
+      canvas.on('object:moving', () => setHasUnsavedChanges(true));
+      canvas.on('object:scaling', () => setHasUnsavedChanges(true));
+      canvas.on('object:removed', () => setHasUnsavedChanges(true));
+      canvas.on('object:added', (e) => {
+        if (e.target.problem) { // Check for the custom 'problem' property
+          setHasUnsavedChanges(true);
+        }
+      });
+      setupDrawingEvents(canvas);
+    }
+
     return () => {
       if (fabricCanvasRef.current) {
         fabricCanvasRef.current.dispose();
+        fabricCanvasRef.current = null;
       }
     };
-    // eslint-disable-next-line
-  }, [imageUrl]);
+  }, []);
 
+  // useEffect 2: Loads the image and annotations only when the canvas is ready.
   useEffect(() => {
-    setupDrawingMode();
-  }, [currentTool]);
+    if (!isCanvasReady || !imageUrl) return;
 
-  const initializeCanvas = () => {
-    const canvas = new fabric.Canvas(canvasRef.current, {
-      width: 800,
-      height: 600,
-      backgroundColor: '#ffffff'
-    });
-    fabricCanvasRef.current = canvas;
+    const canvas = fabricCanvasRef.current;
+    setIsLoading(true);
+    canvas.clear();
+    setHasUnsavedChanges(false);
 
     fabric.Image.fromURL(imageUrl, (img) => {
-      const canvasWidth = 800;
-      const canvasHeight = 600;
+      const canvasWidth = canvas.width;
+      const canvasHeight = canvas.height;
       const scale = Math.min(canvasWidth / img.width, canvasHeight / img.height);
 
       img.set({
@@ -63,65 +83,19 @@ const AnnotationCanvas = ({ imageUrl, annotations, onAnnotationsChange }) => {
         evented: false
       });
 
-      canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
-      setIsLoading(false);
+      canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas), { crossOrigin: 'anonymous' });
 
-      // Load existing annotations
       if (annotations && annotations.length > 0) {
         loadAnnotations(annotations);
       }
+      setIsLoading(false);
     }, { crossOrigin: 'anonymous' });
+  }, [imageUrl, annotations, isCanvasReady]);
 
-    // Track changes but don't auto-save
-    canvas.on('object:modified', () => setHasUnsavedChanges(true));
-    canvas.on('object:moving', () => setHasUnsavedChanges(true));
-    canvas.on('object:scaling', () => setHasUnsavedChanges(true));
-    canvas.on('object:removed', () => setHasUnsavedChanges(true));
-    canvas.on('object:added', (e) => {
-      if (!isLoading && e.target.problem) {
-        setHasUnsavedChanges(true);
-      }
-    });
-
-    setupDrawingEvents(canvas);
-  };
-
-  const setupDrawingEvents = (canvas) => {
-    canvas.on('mouse:down', (o) => {
-      if (currentTool === 'freehand') return;
-      
-      const pointer = canvas.getPointer(o.e);
-      setIsDrawing(true);
-      setStartPoint(pointer);
-    });
-
-    canvas.on('mouse:move', (o) => {
-      if (!isDrawing || currentTool === 'freehand') return;
-      
-      const pointer = canvas.getPointer(o.e);
-      const activeObject = canvas.getActiveObject();
-      
-      if (activeObject && activeObject.isDrawing) {
-        updateDrawingObject(activeObject, startPoint, pointer);
-        canvas.renderAll();
-      }
-    });
-
-    canvas.on('mouse:up', () => {
-      if (currentTool === 'freehand') return;
-      
-      setIsDrawing(false);
-      const activeObject = canvas.getActiveObject();
-      if (activeObject && activeObject.isDrawing) {
-        activeObject.isDrawing = false;
-        activeObject.setCoords();
-      }
-    });
-  };
-
-  const setupDrawingMode = () => {
+  // useEffect 3: Manages drawing mode based on the selected tool.
+  useEffect(() => {
+    if (!isCanvasReady) return;
     const canvas = fabricCanvasRef.current;
-    if (!canvas) return;
 
     if (currentTool === 'freehand') {
       canvas.isDrawingMode = true;
@@ -130,6 +104,38 @@ const AnnotationCanvas = ({ imageUrl, annotations, onAnnotationsChange }) => {
     } else {
       canvas.isDrawingMode = false;
     }
+  }, [currentTool, currentProblem, isCanvasReady]);
+
+  // Rest of the functions remain the same
+  // ... (setupDrawingEvents, updateDrawingObject, addShape, createArrow, etc.)
+
+  const setupDrawingEvents = (canvas) => {
+    canvas.on('mouse:down', (o) => {
+      if (currentTool === 'freehand') return;
+      const pointer = canvas.getPointer(o.e);
+      setIsDrawing(true);
+      setStartPoint(pointer);
+    });
+
+    canvas.on('mouse:move', (o) => {
+      if (!isDrawing || currentTool === 'freehand') return;
+      const pointer = canvas.getPointer(o.e);
+      const activeObject = canvas.getActiveObject();
+      if (activeObject && activeObject.isDrawing) {
+        updateDrawingObject(activeObject, startPoint, pointer);
+        canvas.renderAll();
+      }
+    });
+
+    canvas.on('mouse:up', () => {
+      if (currentTool === 'freehand') return;
+      setIsDrawing(false);
+      const activeObject = canvas.getActiveObject();
+      if (activeObject && activeObject.isDrawing) {
+        activeObject.isDrawing = false;
+        activeObject.setCoords();
+      }
+    });
   };
 
   const updateDrawingObject = (obj, start, current) => {
@@ -142,10 +148,10 @@ const AnnotationCanvas = ({ imageUrl, annotations, onAnnotationsChange }) => {
       obj.set({ left, top, width, height });
     } else if (obj.type === 'circle') {
       const radius = Math.sqrt(width * width + height * height) / 2;
-      obj.set({ 
-        left: start.x - radius, 
-        top: start.y - radius, 
-        radius 
+      obj.set({
+        left: start.x - radius,
+        top: start.y - radius,
+        radius
       });
     } else if (obj.type === 'line') {
       obj.set({ x1: start.x, y1: start.y, x2: current.x, y2: current.y });
@@ -154,12 +160,13 @@ const AnnotationCanvas = ({ imageUrl, annotations, onAnnotationsChange }) => {
 
   const addShape = () => {
     const canvas = fabricCanvasRef.current;
+    if (!canvas) return; // Ensure canvas is ready
     let shape;
 
     const commonProps = {
       fill: currentTool === 'arrow' ? problemTypes[currentProblem] : 'transparent',
       stroke: problemTypes[currentProblem],
-      strokeWidth: 3,
+      strokeWidth: 5,
       problem: currentProblem,
       cornerColor: problemTypes[currentProblem],
       borderColor: problemTypes[currentProblem],
@@ -204,7 +211,7 @@ const AnnotationCanvas = ({ imageUrl, annotations, onAnnotationsChange }) => {
   const createArrow = (x1, y1, x2, y2, color) => {
     const line = new fabric.Line([x1, y1, x2, y2], {
       stroke: color,
-      strokeWidth: 3,
+      strokeWidth: 5,
       selectable: false
     });
 
@@ -219,7 +226,7 @@ const AnnotationCanvas = ({ imageUrl, annotations, onAnnotationsChange }) => {
       y2
     ], {
       stroke: color,
-      strokeWidth: 3,
+      strokeWidth: 5,
       selectable: false
     });
 
@@ -230,13 +237,17 @@ const AnnotationCanvas = ({ imageUrl, annotations, onAnnotationsChange }) => {
       y2
     ], {
       stroke: color,
-      strokeWidth: 3,
+      strokeWidth: 5,
       selectable: false
     });
 
     const arrow = new fabric.Group([line, arrowHead1, arrowHead2], {
       left: x1,
       top: y1,
+      x1_coord: x1,
+      y1_coord: y1,
+      x2_coord: x2,
+      y2_coord: y2,
       selectable: true
     });
 
@@ -245,6 +256,7 @@ const AnnotationCanvas = ({ imageUrl, annotations, onAnnotationsChange }) => {
 
   const deleteSelected = () => {
     const canvas = fabricCanvasRef.current;
+    if (!canvas) return; // Ensure canvas is ready
     const activeObject = canvas.getActiveObject();
     if (activeObject) {
       canvas.remove(activeObject);
@@ -253,6 +265,7 @@ const AnnotationCanvas = ({ imageUrl, annotations, onAnnotationsChange }) => {
 
   const clearAll = () => {
     const canvas = fabricCanvasRef.current;
+    if (!canvas) return; // Ensure canvas is ready
     const objects = canvas.getObjects();
     objects.forEach(obj => {
       if (obj.problem) {
@@ -264,15 +277,16 @@ const AnnotationCanvas = ({ imageUrl, annotations, onAnnotationsChange }) => {
 
   const loadAnnotations = (annotations) => {
     const canvas = fabricCanvasRef.current;
+    if (!canvas) return; // Ensure canvas is ready
     annotations.forEach(ann => {
       let shape;
-      
+
       const commonProps = {
         left: ann.left,
         top: ann.top,
         fill: ann.type === 'arrow' ? problemTypes[ann.problem] : 'transparent',
         stroke: problemTypes[ann.problem],
-        strokeWidth: 3,
+        strokeWidth: 5,
         problem: ann.problem,
         cornerColor: problemTypes[ann.problem],
         borderColor: problemTypes[ann.problem]
@@ -313,6 +327,7 @@ const AnnotationCanvas = ({ imageUrl, annotations, onAnnotationsChange }) => {
 
   const saveAnnotations = () => {
     const canvas = fabricCanvasRef.current;
+    if (!canvas) return; // Ensure canvas is ready
     const objects = canvas.getObjects();
     const currentAnnotations = objects.filter(obj => obj.problem).map(obj => {
       const annotation = {
@@ -328,13 +343,12 @@ const AnnotationCanvas = ({ imageUrl, annotations, onAnnotationsChange }) => {
       } else if (obj.type === 'circle') {
         annotation.type = 'circle';
         annotation.radius = obj.radius * obj.scaleX;
-      } else if (obj.type === 'group') {
+      } else if (obj.type === 'group' && obj.problem) {
         annotation.type = 'arrow';
-        const bounds = obj.getBoundingRect();
-        annotation.x1 = bounds.left;
-        annotation.y1 = bounds.top;
-        annotation.x2 = bounds.left + bounds.width;
-        annotation.y2 = bounds.top + bounds.height;
+        annotation.x1 = obj.x1_coord;
+        annotation.y1 = obj.y1_coord;
+        annotation.x2 = obj.x2_coord;
+        annotation.y2 = obj.y2_coord;
       } else {
         annotation.type = 'freehand';
         annotation.path = obj.path;
@@ -342,15 +356,15 @@ const AnnotationCanvas = ({ imageUrl, annotations, onAnnotationsChange }) => {
 
       return annotation;
     });
-    
+
     const annotatedImageData = canvas.toDataURL('image/png');
-    
     onAnnotationsChange(currentAnnotations, annotatedImageData);
     setHasUnsavedChanges(false);
   };
 
   const viewAnnotation = () => {
     const canvas = fabricCanvasRef.current;
+    if (!canvas) return; // Ensure canvas is ready
     const dataURL = canvas.toDataURL('image/png');
     const newWindow = window.open();
     newWindow.document.write(`
@@ -359,6 +373,12 @@ const AnnotationCanvas = ({ imageUrl, annotations, onAnnotationsChange }) => {
       </div>
     `);
   };
+
+  const annotationCount = fabricCanvasRef.current
+    ? fabricCanvasRef.current.getObjects().filter(obj => obj.problem).length
+    : 0;
+
+  const canSave = hasUnsavedChanges && annotationCount >= 2;
 
   return (
     <div className="annotation-container" style={{ maxWidth: '100%', margin: '0 auto' }}>
@@ -471,7 +491,7 @@ const AnnotationCanvas = ({ imageUrl, annotations, onAnnotationsChange }) => {
           >
             + Add {drawingTools[currentTool]}
           </button>
-          
+
           <button
             onClick={deleteSelected}
             style={{
@@ -510,22 +530,22 @@ const AnnotationCanvas = ({ imageUrl, annotations, onAnnotationsChange }) => {
 
           <button
             onClick={saveAnnotations}
-            disabled={!hasUnsavedChanges}
+            disabled={!canSave}
             style={{
               padding: '10px 20px',
-              background: hasUnsavedChanges 
-                ? 'linear-gradient(135deg, #10b981, #059669)' 
+              background: canSave
+                ? 'linear-gradient(135deg, #10b981, #059669)'
                 : 'linear-gradient(135deg, #6b7280, #4b5563)',
               color: 'white',
               border: 'none',
               borderRadius: '12px',
               fontWeight: '600',
               fontSize: '14px',
-              cursor: hasUnsavedChanges ? 'pointer' : 'not-allowed',
-              boxShadow: hasUnsavedChanges 
-                ? '0 4px 16px rgba(16, 185, 129, 0.3)' 
+              cursor: canSave ? 'pointer' : 'not-allowed',
+              boxShadow: canSave
+                ? '0 4px 16px rgba(16, 185, 129, 0.3)'
                 : '0 4px 16px rgba(107, 114, 128, 0.3)',
-              opacity: hasUnsavedChanges ? 1 : 0.6,
+              opacity: canSave ? 1 : 0.6,
               transition: 'all 0.3s ease'
             }}
           >

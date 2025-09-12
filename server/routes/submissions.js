@@ -19,21 +19,40 @@ const storage = new CloudinaryStorage({
 
 const upload = multer({ storage: storage });
 
-// Create new submission
-router.post('/', upload.single('image'), async (req, res) => {
+// Create new submission with 3 images
+router.post('/', upload.fields([
+  { name: 'upperTeethImage', maxCount: 1 },
+  { name: 'frontTeethImage', maxCount: 1 },
+  { name: 'lowerTeethImage', maxCount: 1 }
+]), async (req, res) => {
   try {
     const { patientName, patientEmail, note } = req.body;
     
-    if (!req.file) {
-      return res.status(400).json({ message: 'Image is required' });
+    if (!req.files.upperTeethImage || !req.files.frontTeethImage || !req.files.lowerTeethImage) {
+      return res.status(400).json({ message: 'All three images are required: Upper Teeth, Front Teeth, and Lower Teeth' });
     }
 
     const submission = new Submission({
       patientName,
       patientEmail,
       note,
-      originalImageUrl: req.file.path,
-      originalImagePublicId: req.file.filename,
+      images: {
+        upperTeeth: {
+          originalImageUrl: req.files.upperTeethImage[0].path,
+          originalImagePublicId: req.files.upperTeethImage[0].filename,
+          annotations: []
+        },
+        frontTeeth: {
+          originalImageUrl: req.files.frontTeethImage[0].path,
+          originalImagePublicId: req.files.frontTeethImage[0].filename,
+          annotations: []
+        },
+        lowerTeeth: {
+          originalImageUrl: req.files.lowerTeethImage[0].path,
+          originalImagePublicId: req.files.lowerTeethImage[0].filename,
+          annotations: []
+        }
+      },
       submittedBy: req.user?._id
     });
 

@@ -34,46 +34,7 @@ router.get('/submissions', auth, requireRole(['admin']), async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get admin submissions error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Save annotations
-router.put('/submissions/:id/annotations', auth, requireRole(['admin']), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { annotations, annotatedImageData } = req.body;
-
-    const submission = await Submission.findById(id);
-    if (!submission) {
-      return res.status(404).json({ message: 'Submission not found' });
-    }
-
-    // Save annotated image to Cloudinary
-    let annotatedImageUrl, annotatedImagePublicId;
-    if (annotatedImageData) {
-      const result = await saveAnnotatedImage(annotatedImageData, id);
-      annotatedImageUrl = result.secure_url;
-      annotatedImagePublicId = result.public_id;
-    }
-
-    // Update submission
-    submission.annotations = annotations;
-    submission.annotatedImageUrl = annotatedImageUrl || submission.annotatedImageUrl;
-    submission.annotatedImagePublicId = annotatedImagePublicId || submission.annotatedImagePublicId;
-    submission.status = 'annotated';
-    submission.reviewedBy = req.user._id;
-    submission.reviewedAt = new Date();
-
-    await submission.save();
-
-    res.json({
-      message: 'Annotations saved successfully',
-      submission
-    });
-  } catch (error) {
-    console.error('Save annotations error:', error);
+    console.error('Save recommendations error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -143,5 +104,85 @@ router.get('/dashboard/stats', auth, requireRole(['admin']), async (req, res) =>
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+
+
+// Save annotations for specific image type
+router.put('/submissions/:id/annotations', auth, requireRole(['admin']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { imageType, annotations, annotatedImageData } = req.body;
+
+    if (!['upperTeeth', 'frontTeeth', 'lowerTeeth'].includes(imageType)) {
+      return res.status(400).json({ message: 'Invalid image type' });
+    }
+
+    const submission = await Submission.findById(id);
+    if (!submission) {
+      return res.status(404).json({ message: 'Submission not found' });
+    }
+
+    // Save annotated image to Cloudinary
+    let annotatedImageUrl, annotatedImagePublicId;
+    if (annotatedImageData) {
+      const result = await saveAnnotatedImage(annotatedImageData, `${id}_${imageType}`);
+      annotatedImageUrl = result.secure_url;
+      annotatedImagePublicId = result.public_id;
+    }
+
+    // Update specific image annotations
+    submission.images[imageType].annotations = annotations;
+    if (annotatedImageUrl) {
+      submission.images[imageType].annotatedImageUrl = annotatedImageUrl;
+      submission.images[imageType].annotatedImagePublicId = annotatedImagePublicId;
+    }
+
+    // Check if all images have been annotated
+    const hasAnnotations = submission.images.upperTeeth.annotations.length > 0 ||
+                          submission.images.frontTeeth.annotations.length > 0 ||
+                          submission.images.lowerTeeth.annotations.length > 0;
+
+    if (hasAnnotations) {
+      submission.status = 'annotated';
+      submission.reviewedBy = req.user._id;
+      submission.reviewedAt = new Date();
+    }
+
+    await submission.save();
+
+    res.json({
+      message: `${imageType} annotations saved successfully`,
+      submission
+    });
+  } catch (error) {
+    console.error('Save annotations error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Save treatment recommendations
+router.put('/submissions/:id/recommendations', auth, requireRole(['admin']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { treatmentRecommendations } = req.body;
+
+    const submission = await Submission.findById(id);
+    if (!submission) {
+      return res.status(404).json({ message: 'Submission not found' });
+    }
+
+    submission.treatmentRecommendations = treatmentRecommendations;
+    await submission.save();
+
+    res.json({
+      message: 'Treatment recommendations saved successfully',
+      submission
+    });
+  } catch (error) {
+    console.error('Save treatment recommendations error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+// Error handling middleware
 
 module.exports = router;
