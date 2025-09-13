@@ -13,7 +13,7 @@ const problemTypes = {
 const drawingTools = {
   rectangle: 'Rectangle',
   circle: 'Circle',
-  arrow: 'Arrow',
+  //arrow: 'Arrow',
   freehand: 'Freehand'
 };
 
