@@ -159,8 +159,8 @@ The application will be available at:
 
 For testing purposes, you can create accounts or use these demo credentials:
 
-- **Patient**: patient@demo.com / password123
-- **Admin**: admin@demo.com / password123
+- **Patient**: patient@gmail.com / patient123
+- **Admin**: admin@gmail.com / admin123
 
 ## Security Features
 

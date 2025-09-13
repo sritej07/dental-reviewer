@@ -130,8 +130,8 @@ const LoginPage = () => {
         <div className="mt-6 p-4 bg-gray-50 rounded-lg">
           <h4 className="font-semibold text-gray-700 mb-2">Demo Credentials</h4>
           <div className="text-sm text-gray-600 space-y-1">
-            <p><strong>Patient:</strong> patient@demo.com / password123</p>
-            <p><strong>Admin:</strong> admin@demo.com / password123</p>
+            <p><strong>Patient:</strong> patient@gmail.com / patient123</p>
+            <p><strong>Admin:</strong> admin@gmail.com / admin123</p>
           </div>
         </div>
       </div>
